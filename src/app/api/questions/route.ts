@@ -24,44 +24,69 @@ function uploadToCloudinary(buffer: Buffer, publicId: string) {
   });
 }
 
-
+function hasArrayBuffer(
+  file: unknown
+): file is { arrayBuffer: () => Promise<ArrayBuffer> } {
+  return (
+    typeof file === 'object' &&
+    file !== null &&
+    typeof (file as any).arrayBuffer === 'function'
+  );
+}
 
 export async function POST(request: NextRequest) {
   try {
     await connectDB();
 
     // Validate Cloudinary configuration
-    const { CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET } = process.env as Record<string, string | undefined>;
+    const {
+      CLOUDINARY_CLOUD_NAME,
+      CLOUDINARY_API_KEY,
+      CLOUDINARY_API_SECRET,
+    } = process.env as Record<string, string | undefined>;
+
     if (!CLOUDINARY_CLOUD_NAME || !CLOUDINARY_API_KEY || !CLOUDINARY_API_SECRET) {
       return NextResponse.json(
-        { success: false, error: 'Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.' },
+        {
+          success: false,
+          error:
+            'Cloudinary is not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET.',
+        },
         { status: 500 }
       );
     }
 
     const formData = await request.formData();
-    const file = formData.get('file') as unknown as File | null;
+    const file = formData.get('file');
     const subjectId = (formData.get('subjectId') as string | null) ?? '';
     const title = (formData.get('title') as string | null) ?? '';
     const year = (formData.get('year') as string | null) ?? '';
 
-    if (!file || typeof (file as any).arrayBuffer !== 'function' || !subjectId || !title || !year) {
+    if (!file || !hasArrayBuffer(file) || !subjectId || !title || !year) {
       return NextResponse.json(
-        { success: false, error: 'All fields are required (title, year, subjectId, file)' },
+        {
+          success: false,
+          error:
+            'All fields are required (title, year, subjectId, file)',
+        },
         { status: 400 }
       );
     }
 
     // Convert file to buffer
-    const bytes = await (file as File).arrayBuffer();
+    const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-// Upload to Cloudinary with timeout guard
-    const uploadResult = await (
-      uploadToCloudinary(buffer, `${subjectId}-${Date.now()}`)
+    // Upload to Cloudinary
+    const uploadResult = await uploadToCloudinary(
+      buffer,
+      `${subjectId}-${Date.now()}`
     );
 
-    const { secure_url, public_id } = uploadResult as any;
+    const { secure_url, public_id } = uploadResult as {
+      secure_url: string;
+      public_id: string;
+    };
 
     // Save to database
     const question = new Question({
@@ -74,11 +99,20 @@ export async function POST(request: NextRequest) {
 
     await question.save();
 
-    return NextResponse.json({ success: true, data: question }, { status: 201 });
-  } catch (error: any) {
+    return NextResponse.json(
+      { success: true, data: question },
+      { status: 201 }
+    );
+  } catch (error: unknown) {
     console.error('Upload question error:', error);
     return NextResponse.json(
-      { success: false, error: error?.message || 'Failed to upload question paper' },
+      {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : 'Failed to upload question paper',
+      },
       { status: 500 }
     );
   }
@@ -97,7 +131,11 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const questions = await Question.find({ subjectId }).sort({ year: -1, createdAt: -1 });
+    const questions = await Question.find({ subjectId }).sort({
+      year: -1,
+      createdAt: -1,
+    });
+
     return NextResponse.json({ success: true, data: questions });
   } catch (error) {
     console.error('Get questions error:', error);

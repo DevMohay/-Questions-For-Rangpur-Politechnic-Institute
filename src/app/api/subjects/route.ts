@@ -35,10 +35,15 @@ export async function POST(request: NextRequest) {
     await subject.save();
 
     return NextResponse.json({ success: true, data: subject }, { status: 201 });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Create subject error:', error);
-    
-    if (error.code === 11000) {
+
+    if (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: number }).code === 11000
+    ) {
       return NextResponse.json(
         { success: false, error: 'Subject with this name already exists' },
         { status: 409 }
