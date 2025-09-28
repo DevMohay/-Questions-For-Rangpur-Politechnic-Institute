@@ -3,20 +3,14 @@ import { connectDB } from '../../../../../lib/mongodb';
 import Question from '../../../../../models/Question';
 import cloudinary from '../../../../../lib/cloudinary';
 
-interface DeleteContext {
-  params: {
-    id: string;
-  };
-}
-
 export async function DELETE(
   _request: NextRequest,
-  context: DeleteContext
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     await connectDB();
 
-     const { id } =await context.params; // ✅ params is NOT a promise
+    const { id } = await params;
 
     const question = await Question.findById(id);
 
@@ -27,12 +21,10 @@ export async function DELETE(
       );
     }
 
-    // Delete from Cloudinary if publicId exists
     if (question.publicId) {
       await cloudinary.uploader.destroy(question.publicId);
     }
 
-    // Delete from database
     await Question.findByIdAndDelete(id);
 
     return NextResponse.json({
