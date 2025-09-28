@@ -3,15 +3,22 @@ import { connectDB } from '../../../../../lib/mongodb';
 import Question from '../../../../../models/Question';
 import cloudinary from '../../../../../lib/cloudinary';
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+interface DeleteContext {
+  params: {
+    id: string;
+  };
+}
 
-) 
-{
+export async function DELETE(
+  _request: NextRequest,
+  context: DeleteContext
+) {
   try {
     await connectDB();
-    const question = await Question.findById(params.id);
+
+     const { id } =await context.params; // ✅ params is NOT a promise
+
+    const question = await Question.findById(id);
 
     if (!question) {
       return NextResponse.json(
@@ -20,13 +27,18 @@ export async function DELETE(
       );
     }
 
-    // Delete from Cloudinary
-    await cloudinary.uploader.destroy(question.publicId);
+    // Delete from Cloudinary if publicId exists
+    if (question.publicId) {
+      await cloudinary.uploader.destroy(question.publicId);
+    }
 
     // Delete from database
-    await Question.findByIdAndDelete(params.id);
+    await Question.findByIdAndDelete(id);
 
-    return NextResponse.json({ success: true, message: 'Question paper deleted successfully' });
+    return NextResponse.json({
+      success: true,
+      message: 'Question paper deleted successfully',
+    });
   } catch (error) {
     console.error('Delete question error:', error);
     return NextResponse.json(

@@ -30,7 +30,7 @@ function hasArrayBuffer(
   return (
     typeof file === 'object' &&
     file !== null &&
-    typeof (file as any).arrayBuffer === 'function'
+    typeof (file as Blob).arrayBuffer === 'function'
   );
 }
 
